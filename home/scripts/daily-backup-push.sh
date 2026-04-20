@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Daily push to hermes-vps-backup GitHub repo
-# Uses orphan-branch strategy to bypass GitHub secret-scanning on history rewrite.
-# Runs after sync-live-state.sh commits locally.
-# Only pushes if there are unpushed commits on main.
+# Normal incremental push — sync-live-state.sh commits locally, then this pushes.
+# Orphan-branch strategy retired after GitHub secret allowlist.
 
 set -euo pipefail
 
@@ -13,35 +12,23 @@ LOG="$HOME/logs/backup-push.log"
     echo "---"
     echo "$(date -Iseconds) backup-push: starting"
 
-    if ! git -C "$REPO" diff --quiet HEAD origin/main 2>/dev/null; then
-        echo "$(date -Iseconds) backup-push: unpushed commits found, using orphan strategy to bypass secret scanning"
+    cd "$REPO"
 
-        # Save current branch name
-        CURRENT_BRANCH=$(git -C "$REPO" rev-parse --abbrev-ref HEAD)
-        TEMP_BRANCH="backup-$(date +%Y%m%d-%H%M%S)"
+    # Stage any changes from sync-live-state.sh or manual edits
+    git add -A
 
-        # Create orphan branch from current HEAD (no history, clean tree)
-        git -C "$REPO" checkout --orphan "$TEMP_BRANCH" HEAD
+    # Commit if there are changes; bail silently if nothing staged
+    if git diff --cached --quiet; then
+        echo "$(date -Iseconds) backup-push: nothing staged, skipping commit"
+    else
+        git commit -m "backup: $(date +%F)"
+        echo "$(date -Iseconds) backup-push: committed"
+    fi
 
-        # Commit the current state (empty msg ok — git records the merge commit)
-        git -C "$REPO" commit --allow-empty -m "Hermes VPS backup $(date -Iseconds)" || true
-
-        # Push orphan branch to origin/main (GitHub sees no history = no secret scanning block)
-        git -C "$REPO" push --force origin "$TEMP_BRANCH:main" 2>&1
-
-        # Move local main to match origin/main
-        git -C "$REPO" checkout main
-        git -C "$REPO" reset --hard origin/main
-
-        # Clean up temp branch
-        git -C "$REPO" branch -D "$TEMP_BRANCH" 2>/dev/null || true
-
-        # Restore working branch if we were on clean
-        if [ "$CURRENT_BRANCH" != "main" ] && [ "$CURRENT_BRANCH" != "$TEMP_BRANCH" ]; then
-            git -C "$REPO" checkout "$CURRENT_BRANCH"
-        fi
-
-        echo "$(date -Iseconds) backup-push: orphan push complete"
+    # Push if there are unpushed commits
+    if git log --branches --not --remotes --oneline | grep -q .; then
+        git push origin main
+        echo "$(date -Iseconds) backup-push: pushed"
     else
         echo "$(date -Iseconds) backup-push: up to date, nothing to push"
     fi
