@@ -8,7 +8,7 @@
  * Usage: node search.mjs "<query>" [--model sonar-pro|sonar-deep-research] [--max-results N]
  */
 
-const PERPLEXITY_API_KEY=process.env.PERPLEXITY_API_KEY || '';
+const PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY || '';
 const PERPLEXITY_API_URL = 'https://api.perplexity.ai/chat/completions';
 
 async function perplexitySearch(query, options = {}) {

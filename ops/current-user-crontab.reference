@@ -52,3 +52,6 @@
 0 8 * * *       cd ~/prodURecruitSite && node autoresearch/autoresearch-loop.cjs >> /tmp/autoresearch.log 2>&1
 */2 * * * * /home/moltbot/.openclaw/config/openclaw-watchdog.sh
 0 5 * * * /home/moltbot/.openclaw/config/openclaw-health-check.sh --notify
+10 6 * * * bash /home/moltbot/scripts/daily-backup-push.sh >> /home/moltbot/logs/backup-push.log 2>&1
+*/5 * * * * bash /home/moltbot/scripts/hermes-heartbeat.sh >> /home/moltbot/logs/heartbeat.log 2>&1
+*/30 * * * * cd /home/moltbot/impact-vault && git pull --quiet 2>&1 | grep -v "Already up to date" >> /home/moltbot/logs/vault-pull.log

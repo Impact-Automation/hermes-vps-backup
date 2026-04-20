@@ -35,3 +35,5 @@ Working Pattern: Quiet hours: 23:00-07:00 Bangkok unless urgent
 Favorite candidate sourcing strategy right now: rolled-up Pin three-list company filter.
 §
 Unique test marker: magenta-otter-2026
+§
+Self-sufficiency rule: Do NOT rely on OpenClaw workspace files/scripts as dependencies. Install and maintain own tools properly. Harry corrected this behavior directly: "You never use OpenClaw files fix thee skill for yourself."
