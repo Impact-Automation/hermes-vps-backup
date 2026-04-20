@@ -1,0 +1,13 @@
+{
+  "name": "voice-transcribe",
+  "version": "1.0.0",
+  "description": "Transcribe audio files using Together AI's Kimi K2.5",
+  "main": "index.js",
+  "keywords": ["voice", "transcription", "audio", "together", "kimi"],
+  "author": "OpenClaw",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.6.0",
+    "form-data": "^4.0.0"
+  }
+}

@@ -1,0 +1,276 @@
+#!/usr/bin/env node
+/**
+ * Draft Approval Poller
+ *
+ * Polls derrick_draft_validations for pending drafts (telegram_message_id IS NULL)
+ * and sends Telegram cards via @ClawdyDevBot with [Send] [Edit] [Reject] buttons.
+ *
+ * Usage:
+ *   node draft-poller.js           # Normal run
+ *   node draft-poller.js --dry-run # Log what would be sent without sending
+ */
+const dotenv = require("dotenv");
+dotenv.config({ path: "/home/moltbot/.openclaw/.env" });
+
+const { query, update, rpc } = require("./supabase-client");
+
+const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const HARRY_CHAT_ID = process.env.HARRY_CHAT_ID || "6884933598";
+const DRY_RUN = process.argv.includes("--dry-run");
+const TELEGRAM_API = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}`;
+
+// ── Telegram helpers ─────────────────────────────────────────────────
+
+async function sendTelegram(chatId, text, replyMarkup) {
+  const payload = {
+    chat_id: chatId,
+    text,
+  };
+  if (replyMarkup) {
+    payload.reply_markup = JSON.stringify(replyMarkup);
+  }
+
+  const res = await fetch(`${TELEGRAM_API}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const errText = await res.text().catch(() => "");
+    throw new Error(`Telegram sendMessage failed (${res.status}): ${errText.substring(0, 200)}`);
+  }
+
+  const result = await res.json();
+  return result.result;
+}
+
+// ── Main polling logic ───────────────────────────────────────────────
+
+async function pollPendingDrafts() {
+  // 1. Check kill switch
+  const killSwitchRows = await query("openclaw_config", {
+    key: "in.(draft_kill_switch_active,draft_send_enabled)",
+    select: "key,value",
+  });
+
+  const configMap = Object.fromEntries(killSwitchRows.map((r) => [r.key, r.value]));
+  const killActive = configMap.draft_kill_switch_active === "true" || configMap.draft_kill_switch_active === true;
+  const sendEnabled = configMap.draft_send_enabled !== "false" && configMap.draft_send_enabled !== false;
+
+  if (killActive) {
+    console.log("[DraftPoller] Kill switch active — skipping");
+    return { sent: 0, skipped: 0, reason: "kill_switch" };
+  }
+  if (!sendEnabled) {
+    console.log("[DraftPoller] Draft send disabled — skipping");
+    return { sent: 0, skipped: 0, reason: "send_disabled" };
+  }
+
+  // 2. Query pending drafts with no telegram_message_id
+  // ASSISTED MODE PHASE 1: Only send Category A to Harry (high priority)
+  // Category B/C/D/E go to daily summary queue
+  const pending = await query("derrick_draft_validations", {
+    draft_status: "eq.pending_approval",
+    telegram_message_id: "is.null",
+    triage_category: "eq.A",  // Only Category A for Harry review
+    order: "created_at.asc",
+    limit: "1",
+    select: "id,candidate_email,from_email,subject,original_draft,scenario_type,draft_confidence,model_used,thread_id,telegram_chat_id,triage_category",
+  });
+
+  // 2b. Count lower-priority drafts for daily summary (Assisted Mode Phase 1)
+  const lowerPriority = await query("derrick_draft_validations", {
+    draft_status: "eq.pending_approval",
+    telegram_message_id: "is.null",
+    triage_category: "in.(B,C,D,E)",
+    select: "id,triage_category",
+  });
+  
+  if (lowerPriority.length > 0) {
+    console.log(`[DraftPoller] ${lowerPriority.length} lower-priority drafts (B/C/D/E) in queue for daily summary`);
+  }
+
+  if (pending.length === 0) {
+    console.log("[DraftPoller] No pending Category A drafts for Harry");
+    // Send daily summary if there are lower priority drafts
+    if (lowerPriority.length > 0) {
+      console.log(`[DraftPoller] Would send daily summary for ${lowerPriority.length} lower-priority drafts`);
+    }
+    return { sent: 0, skipped: 0 };
+  }
+
+  console.log(`[DraftPoller] Found ${pending.length} pending Category A draft(s) for Harry`);
+
+  let sent = 0;
+  let skipped = 0;
+
+  for (const draft of pending) {
+    const chatId = draft.telegram_chat_id || HARRY_CHAT_ID;
+
+    // 3. Rate limit check
+    try {
+      const rateLimitOk = await rpc("fn_check_telegram_rate_limit", {
+        p_chat_id: Number(chatId),
+        p_thread_id: draft.thread_id || null,
+      });
+
+      if (rateLimitOk === false) {
+        console.log(`[DraftPoller] Rate limit hit for ${draft.id} — skipping`);
+        skipped++;
+        continue;
+      }
+    } catch (e) {
+      console.warn(`[DraftPoller] Rate limit check failed for ${draft.id}: ${e.message} — sending anyway`);
+    }
+
+    // 4. Build message card
+    const fromName = (draft.from_email || "colin@urecruitglobal.com").split("@")[0];
+    const candidateEmail = draft.candidate_email || "unknown";
+    const subject = draft.subject || "(no subject)";
+    const truncatedDraft = draft.original_draft.length > 800
+      ? draft.original_draft.substring(0, 800) + "..."
+      : draft.original_draft;
+    const confidence = draft.draft_confidence != null ? `${draft.draft_confidence}%` : "n/a";
+
+    // Quick cheat sheet tips based on category (corrected)
+    const categoryTips = {
+      'A': 'CTA: CV request first • Location interest • KR',
+      'B': 'CTA: Phone/availability after CV • KR', 
+      'C': 'CTA: Answer first, then soft CTA • No jump to phone',
+      'D': 'CTA: Next steps/availability • Brief • KR',
+      'E': 'CTA: Keep in touch • Very short',
+    };
+    const tip = categoryTips[draft.triage_category] || 'Reply /cheat for full guide';
+
+    const message =
+      `[${fromName} -> ${candidateEmail}]\n` +
+      `Re: ${subject}\n\n` +
+      `${truncatedDraft}\n\n` +
+      `---\n` +
+      `Category: ${draft.triage_category || 'A'} | ${tip}\n` +
+      `Confidence: ${confidence} | Model: ${draft.model_used || 'unknown'}\n` +
+      `Reply /cheat for full Colin style guide`;
+
+    const keyboard = {
+      inline_keyboard: [[
+        { text: "Send", callback_data: `draft_approve:${draft.id}` },
+        { text: "Edit", callback_data: `draft_edit:${draft.id}` },
+        { text: "Reject", callback_data: `draft_reject:${draft.id}` },
+      ]],
+    };
+
+    if (DRY_RUN) {
+      console.log(`[DRY RUN] Would send to ${chatId}:`);
+      console.log(message.substring(0, 200) + "...");
+      console.log(`Buttons: Send | Edit | Reject (id=${draft.id})`);
+      sent++;
+      continue;
+    }
+
+    // 5. Send via Telegram
+    try {
+      const result = await sendTelegram(chatId, message, keyboard);
+      const telegramMsgId = result.message_id;
+
+      // 6. Update row with telegram_message_id
+      await update(
+        "derrick_draft_validations",
+        {
+          telegram_message_id: telegramMsgId,
+          telegram_chat_id: Number(chatId),
+        },
+        { id: `eq.${draft.id}` }
+      );
+
+      // 7. Record rate limit event
+      try {
+        await rpc("fn_record_telegram_send", {
+          p_chat_id: Number(chatId),
+          p_thread_id: draft.thread_id || null,
+          p_message_type: "draft_notification",
+        });
+      } catch (e) {
+        console.warn(`[DraftPoller] Rate limit record failed: ${e.message}`);
+      }
+
+      console.log(`[DraftPoller] Sent draft ${draft.id} (tg_msg=${telegramMsgId})`);
+      sent++;
+    } catch (e) {
+      console.error(`[DraftPoller] Failed to send draft ${draft.id}: ${e.message}`);
+      skipped++;
+    }
+  }
+
+  return { sent, skipped };
+}
+
+// ── Learning summary relay ───────────────────────────────────────────
+
+async function relayLearningSummaries() {
+  try {
+    const summaries = await query("moltbot_audit_log", {
+      event_type: "eq.learning_summary",
+      "details->>telegram_sent": "is.null",
+      order: "created_at.desc",
+      limit: "3",
+      select: "id,details,created_at",
+    });
+
+    if (summaries.length === 0) return 0;
+
+    let sent = 0;
+    for (const s of summaries) {
+      const text = s.details?.summary_text || JSON.stringify(s.details);
+
+      if (DRY_RUN) {
+        console.log(`[DRY RUN] Would send learning summary ${s.id}`);
+        sent++;
+        continue;
+      }
+
+      try {
+        await sendTelegram(HARRY_CHAT_ID, text);
+        await update(
+          "moltbot_audit_log",
+          { details: { ...s.details, telegram_sent: true } },
+          { id: `eq.${s.id}` }
+        );
+        console.log(`[DraftPoller] Relayed learning summary ${s.id}`);
+        sent++;
+      } catch (e) {
+        console.warn(`[DraftPoller] Failed to relay summary ${s.id}: ${e.message}`);
+      }
+    }
+    return sent;
+  } catch (e) {
+    console.log(`[DraftPoller] No learning summaries to relay`);
+    return 0;
+  }
+}
+
+// ── Entry point ──────────────────────────────────────────────────────
+
+async function main() {
+  if (!TELEGRAM_BOT_TOKEN) {
+    console.error("[DraftPoller] TELEGRAM_BOT_TOKEN not set");
+    process.exit(1);
+  }
+
+  if (DRY_RUN) {
+    console.log("[DraftPoller] DRY RUN — no messages will be sent");
+    const me = await fetch(`${TELEGRAM_API}/getMe`).then((r) => r.json());
+    console.log(`[DraftPoller] Bot: @${me.result?.username} (${me.result?.first_name})`);
+  }
+
+  try {
+    const draftResult = await pollPendingDrafts();
+    const summaryCount = await relayLearningSummaries();
+    console.log(`[DraftPoller] Done: ${draftResult.sent} drafts sent, ${draftResult.skipped} skipped, ${summaryCount} summaries relayed`);
+  } catch (e) {
+    console.error(`[DraftPoller] Fatal: ${e.message}`);
+    process.exit(1);
+  }
+}
+
+main();

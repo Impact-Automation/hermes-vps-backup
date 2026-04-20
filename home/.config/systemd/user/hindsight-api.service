@@ -1,0 +1,16 @@
+[Unit]
+Description=Hindsight API Server
+Requires=hindsight-postgres.service
+After=hindsight-postgres.service
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.hindsight-api.env
+ExecStart=%h/.hindsight-api-venv/bin/hindsight-api
+Restart=always
+RestartSec=5
+StandardOutput=append:%h/logs/hindsight-api.log
+StandardError=append:%h/logs/hindsight-api.log
+
+[Install]
+WantedBy=default.target

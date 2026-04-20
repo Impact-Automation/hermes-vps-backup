@@ -1,0 +1,12 @@
+{
+  "name": "draft-generator",
+  "version": "1.0.0",
+  "description": "Generate candidate outreach emails in Colin's style",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0"
+  }
+}

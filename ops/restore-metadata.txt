@@ -1,0 +1,6 @@
+hermes_agent_repo=https://github.com/NousResearch/hermes-agent.git
+hermes_agent_branch=main
+hermes_agent_commit=6fb69229caba4bd5699228e520de4956b3458187
+python_version=Python 3.11.15
+node_version=v22.22.1
+npm_version=10.9.4

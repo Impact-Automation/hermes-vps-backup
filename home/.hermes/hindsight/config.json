@@ -1,0 +1,11 @@
+{
+  "mode": "local_external",
+  "api_url": "http://127.0.0.1:8888",
+  "bank_id": "harry-hermes",
+  "recall_budget": "mid",
+  "recall_max_tokens": 4096,
+  "auto_recall": true,
+  "auto_retain": true,
+  "retain_async": true,
+  "memory_mode": "hybrid"
+}

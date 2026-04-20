@@ -1,0 +1,54 @@
+# Derrick cron jobs — URecruit OpenClaw
+# Wrapped with run-skill.sh for self-improvement loop
+
+# Daily git sync — 06:00 UTC
+0 6 * * *       cd ~/.openclaw/workspace && bash scripts/run-skill.sh daily-git-sync -- bash scripts/daily-git-sync.sh >> /tmp/git-sync.log 2>&1
+
+# Heartbeat monitor — hourly
+0 * * * *       cd ~/.openclaw/workspace && bash scripts/run-skill.sh heartbeat-monitor -- node skills/heartbeat-monitor.js >> /tmp/heartbeat.log 2>&1
+
+# Config auditor — weekly Sunday 01:00 UTC
+0 1 * * 0       cd ~/.openclaw/workspace && bash scripts/run-skill.sh config-auditor -- node skills/config-auditor.js >> /tmp/config-auditor.log 2>&1
+
+# Ghost pattern updater — daily 07:05
+5 7 * * *       cd ~/.openclaw/workspace && bash scripts/run-skill.sh ghost-pattern-updater -- node skills/ghost-mode-pattern-updater.js >> /tmp/ghost-pattern.log 2>&1
+
+# Prod pull — daily 06:10
+10 6 * * *      cd ~/prodURecruitSite && git pull origin main >> /tmp/prod-pull.log 2>&1
+
+# Instruction processor — every 10 min
+*/10 * * * *    cd ~/.openclaw/workspace && bash scripts/run-skill.sh instruction-processor -- node scripts/instruction-processor.js >> /tmp/instruction-processor.log 2>&1
+
+# Proactive scanner — 3x daily
+0 8,13,18 * * * cd ~/.openclaw/workspace && bash scripts/run-skill.sh proactive-scanner -- bash scripts/proactive-scanner.sh >> /tmp/proactive-scanner.log 2>&1
+
+# Task dispatcher — every 15 min
+*/15 * * * *    cd ~/.openclaw/workspace && bash scripts/run-skill.sh task-dispatcher -- bash scripts/task-dispatcher.sh >> /tmp/task-dispatcher.log 2>&1
+
+# Pipeline watchdog — every 30 min
+*/30 * * * *    cd ~/.openclaw/workspace && bash scripts/run-skill.sh pipeline-watchdog -- bash scripts/pipeline-watchdog.sh >> /tmp/pipeline-watchdog.log 2>&1
+
+# Memory enforcer — every 4 hours
+0 */4 * * *     cd ~/.openclaw/workspace && bash scripts/run-skill.sh memory-enforcer -- bash scripts/memory-enforcer.sh >> /tmp/memory-enforcer.log 2>&1
+
+# Daily standup — 07:00 UTC
+0 7 * * *       cd ~/.openclaw/workspace && bash scripts/run-skill.sh daily-standup -- bash scripts/daily-standup.sh >> /tmp/daily-standup.log 2>&1
+
+# Daily inspector — 04:00 UTC (11:00 Thailand)
+0 4 * * *       cd ~/.openclaw/workspace && source ~/.openclaw/.env && node skills/daily-inspector.js >> /tmp/derrick-inspector.log 2>&1
+
+# Hindsight health check — every 5 minutes
+*/5 * * * *     bash ~/scripts/hindsight-health.sh >> ~/logs/hindsight-health.log 2>&1
+
+# Hindsight daily pg_dump backup — 03:00 UTC
+0 3 * * *       ~/.pg0/installation/18.1.0/bin/pg_dump -h /tmp -p 5433 -U hindsight hindsight > ~/logs/hindsight-backup-$(date +\%Y\%m\%d).sql 2>> ~/logs/hindsight-health.log
+
+# Paul digest — 3x daily (Bangkok UTC+7: 11AM=04:00, 3PM=08:00, 9PM=14:00)
+0 4 * * 1-5     ~/.npm-global/bin/openclaw agent --agent paul --message 'Start of day check-in. Give me a brief SOD digest: queue depth, any urgent actions, and a quick football thought to get the day going.' --deliver >> /tmp/paul-digest.log 2>&1
+0 8 * * 1-5     ~/.npm-global/bin/openclaw agent --agent paul --message 'Midday check-in. Give me a brief midday digest: approvals since morning, queue status, anything urgent this afternoon.' --deliver >> /tmp/paul-digest.log 2>&1
+0 14 * * 1-5    ~/.npm-global/bin/openclaw agent --agent paul --message 'End of day. Give me an EOD digest: todays totals, weekly progress, any actions needed tomorrow, and a beer token verdict.' --deliver >> /tmp/paul-digest.log 2>&1
+
+# Autoresearch loop — daily 08:00 UTC (after 06:10 prod pull + 07:05 ghost pattern updater)
+0 8 * * *       cd ~/prodURecruitSite && node autoresearch/autoresearch-loop.cjs >> /tmp/autoresearch.log 2>&1
+*/2 * * * * /home/moltbot/.openclaw/config/openclaw-watchdog.sh
+0 5 * * * /home/moltbot/.openclaw/config/openclaw-health-check.sh --notify

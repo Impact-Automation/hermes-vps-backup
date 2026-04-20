@@ -1,0 +1,26 @@
+name: voice-transcribe
+description: Transcribe audio files (voice notes, recordings) to text using Together AI's Kimi K2.5
+version: 1.0.0
+author: OpenClaw
+entry: index.js
+env:
+  - TOGETHER_API_KEY
+tools:
+  - name: voice-transcribe
+    description: Transcribe audio files to text
+    args:
+      filePath:
+        type: string
+        required: true
+        description: Path to the audio file
+      language:
+        type: string
+        required: false
+        description: Language code (e.g., 'en', 'zh', 'es')
+      responseFormat:
+        type: string
+        required: false
+        default: json
+      timestampGranularities:
+        type: string
+        required: false

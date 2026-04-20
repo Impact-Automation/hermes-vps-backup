@@ -1,0 +1,50 @@
+# Secrets and auth
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.template
+**/auth.json
+**/*token*
+**/*secret*
+**/*credentials*
+**/*cookies*
+**/twitter_cookies.txt
+
+# Runtime/session state (do not back up)
+**/sessions/
+**/state.db
+**/state.db-*
+**/*.sqlite
+**/*.sqlite3
+**/*.db
+**/*.db-*
+**/gateway.pid
+**/gateway_state.json
+**/.restart_last_processed.json
+**/.tick.lock
+**/channel_directory.json
+**/logs/
+**/*.log
+**/tmp/
+
+# Source clone / vendored deps (rebuild on restore)
+**/hermes-agent/
+**/node_modules/
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+**/*.pyo
+**/.mypy_cache/
+**/.ruff_cache/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+
+# Lock files created at runtime
+**/*.lock
+!**/package-lock.json
+!**/poetry.lock
+!**/uv.lock

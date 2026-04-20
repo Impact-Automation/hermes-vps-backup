@@ -1,0 +1,12 @@
+name: urecruit-recruiter-tools
+version: 1.0.0
+description: Native Hermes plugin for URecruit recruiter edge functions and dashboards
+author: Derrick
+provides_tools:
+  - job-board
+  - candidate-query
+  - candidate-assignment
+  - director-relay
+  - update-knowledge
+  - recruiter-tools
+  - recruiter-stats

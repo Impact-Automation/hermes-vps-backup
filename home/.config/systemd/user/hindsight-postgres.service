@@ -1,0 +1,15 @@
+[Unit]
+Description=Hindsight PostgreSQL (pg0, port 5433)
+After=network.target
+
+[Service]
+Type=forking
+ExecStart=/home/moltbot/.pg0/installation/18.1.0/bin/pg_ctl start -D /home/moltbot/.pg0/instances/hindsight/data/ -l /home/moltbot/logs/hindsight-postgres.log -o "-p 5433 -k /tmp"
+ExecStop=/home/moltbot/.pg0/installation/18.1.0/bin/pg_ctl stop -D /home/moltbot/.pg0/instances/hindsight/data/ -m fast
+ExecReload=/home/moltbot/.pg0/installation/18.1.0/bin/pg_ctl reload -D /home/moltbot/.pg0/instances/hindsight/data/
+PIDFile=/home/moltbot/.pg0/instances/hindsight/data/postmaster.pid
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
