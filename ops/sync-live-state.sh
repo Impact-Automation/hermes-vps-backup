@@ -49,6 +49,11 @@ git -C "$HOME_DIR/.hermes/hermes-agent" remote get-url origin > "$REPO_ROOT/ops/
 git -C "$HOME_DIR/.hermes/hermes-agent" rev-parse HEAD > "$REPO_ROOT/ops/hermes-source.commit"
 git -C "$HOME_DIR/.hermes/hermes-agent" rev-parse --abbrev-ref HEAD > "$REPO_ROOT/ops/hermes-source.branch"
 
+# Refresh .env.template key list from live ~/.hermes/.env (values REDACTED)
+if [ -f "$HOME_DIR/.hermes/.env" ]; then
+  sed 's/=.*/=/' "$HOME_DIR/.hermes/.env" > "$REPO_ROOT/ops/.env.template"
+fi
+
 # Capture pinned hindsight-client version from Hermes venv
 if [ -f "$HOME_DIR/.hermes/hermes-agent/venv/lib/python3.11/site-packages/hindsight_client-0.5.3.dist-info/METADATA" ]; then
   grep "^Version:" "$HOME_DIR/.hermes/hermes-agent/venv/lib/python3.11/site-packages/hindsight_client-"*"/METADATA" 2>/dev/null | awk '{print $2}' > "$REPO_ROOT/ops/hindsight-client.version"

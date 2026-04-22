@@ -128,6 +128,9 @@ Restore complete.
 
 Manual follow-up checklist:
   1. Recreate ~/.hermes/.env from secure secret storage.
+     Required keys: TELEGRAM_BOT_TOKEN, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
+                    ANTHROPIC_API_KEY, GEMINI_API_KEY, MINIMAX_API_KEY, etc.
+     See ops/.env.template for the full key list.
   2. Recreate ~/.hindsight-api.env from secure secret storage.
   3. Recreate ~/.hermes/auth.json if you use provider auth stored there.
   4. Run: codex login
